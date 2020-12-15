@@ -17,7 +17,6 @@ class Encoder(nn.Module):
             num_embeddings=input_dim,
             embedding_dim=emb_dim
         )
-            # <YOUR CODE HERE>
         
         self.rnn = nn.LSTM(
             input_size=emb_dim,
@@ -28,14 +27,12 @@ class Encoder(nn.Module):
             bidirectional=False
         )
         
-        self.dropout = nn.Dropout(p=dropout)# <YOUR CODE HERE>
+        self.dropout = nn.Dropout(p=dropout)
         
     def forward(self, src):
         
         #src = [src sent len, batch size]
-        
-        # Compute an embedding from the src data and apply dropout to it
-        embedded = self.embedding(src)# <YOUR CODE HERE>
+        embedded = self.embedding(src)
         embedded = self.dropout(embedded)
         output, (hidden, cell) = self.rnn(embedded)
         
@@ -56,7 +53,6 @@ class Decoder(nn.Module):
             num_embeddings=output_dim,
             embedding_dim=emb_dim
         )
-            # <YOUR CODE HERE>
         
         self.rnn = nn.LSTM(
             input_size=emb_dim,
@@ -76,7 +72,7 @@ class Decoder(nn.Module):
         
         self.attn_lin = nn.Linear(self.hid_dim*2, self.hid_dim*2)
         
-        self.dropout = nn.Dropout(p=dropout)# <YOUR CODE HERE>
+        self.dropout = nn.Dropout(p=dropout)
         
     def forward(self, input, hidden, cell, encoder_outputs):
         
@@ -131,7 +127,7 @@ class Seq2Seq(nn.Module):
         assert encoder.n_layers == decoder.n_layers, \
             "Encoder and decoder must have equal number of layers!"
         
-    def forward(self, src, trg, teacher_forcing_ratio = 0.5):
+    def forward(self, src, trg, teacher_forcing_ratio=0.5):
         
         #src = [src sent len, batch size]
         #trg = [trg sent len, batch size]
@@ -161,3 +157,24 @@ class Seq2Seq(nn.Module):
             input = (trg[t] if teacher_force else top1)
         
         return outputs
+    
+    def batch_pgloss(self, src, trg, reward):
+        """
+        Returns a policy gradient loss
+        :param src: seq_len x batch_size
+        :param trg: seq_len x batch_size
+        :param reward: batch_size (discriminator reward for each sentence, applied to each token of the corresponding sentence)
+        :return loss: policy loss
+        """
+
+        srq_len, batch_size = src.size()
+
+        out = self.forward(src, trg,
+                           teacher_forcing_ratio=0.5).permute(1, 0, 2)  # batch * seq * vocab
+        out = F.log_softmax(out, dim=2)
+        target_onehot = F.one_hot(trg.permute(1, 0), self.encoder.input_dim).float()  # batch * seq * vocab
+        pred = torch.sum(out * target_onehot, dim=-1)  # batch_size * seq_len
+        pred = torch.sum(pred, dim=-1)
+        loss = -torch.sum(pred * reward) 
+
+        return loss / batch_size

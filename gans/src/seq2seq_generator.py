@@ -127,7 +127,7 @@ class Seq2Seq(nn.Module):
         assert encoder.n_layers == decoder.n_layers, \
             "Encoder and decoder must have equal number of layers!"
         
-    def forward(self, src, trg, teacher_forcing_ratio=0.5):
+    def forward(self, src, trg, teacher_forcing_ratio=0.5, max_len=30):
         
         #src = [src sent len, batch size]
         #trg = [trg sent len, batch size]
@@ -153,10 +153,11 @@ class Seq2Seq(nn.Module):
             output, hidden, cell = self.decoder(input, hidden, cell, encoder_outputs)
             outputs[t] = output
             teacher_force = random.random() < teacher_forcing_ratio
-            top1 = output.max(1)[1]
+            top1 = output.max(1)[1]  # argmax
             input = (trg[t] if teacher_force else top1)
         
         return outputs
+    
     
     def batch_pgloss(self, src, trg, reward):
         """

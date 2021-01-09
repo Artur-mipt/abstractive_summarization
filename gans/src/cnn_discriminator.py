@@ -5,11 +5,11 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 
-class CNNDiscriminator2(nn.Module):
+class CNNDiscriminator(nn.Module):
     
     def __init__(self, embed_dim, vocab_size, num_classes, filter_sizes,
                  num_filters, padding_idx, dropout=0.2):
-        # super(CNNDiscriminator2, self).__init__()
+        super(CNNDiscriminator, self).__init__()
         
         V = vocab_size
         D = embed_dim
@@ -22,9 +22,6 @@ class CNNDiscriminator2(nn.Module):
         self.convs = nn.ModuleList([nn.Conv2d(Ci, Co, (K, D)) for K in Ks])
         self.dropout = nn.Dropout(dropout)
         self.fc1 = nn.Linear(len(Ks) * Co, C)
-
-        if self.args.static:
-            self.embed.weight.requires_grad = False
 
     def forward(self, x):
         x = self.embed(x)  # (N, W, D)

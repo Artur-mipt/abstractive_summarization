@@ -1,43 +1,57 @@
-import string
-
 from biasedLexRank import BiasedLexRank
-import nltk
-from nltk.corpus import stopwords
-from pymystem3 import Mystem
+from data_reader import DataReader
+from text_preprocessing import TextPreprocessor
+from rus_preprocessing_udpipe import UdpipeProcessor
+import json
+import metrics as m
+import numpy as np
 
 
-txt1 = "В понедельник, 9 ноября, на телеканале Россия 1 начинается показ восьмисерийной ленты Бомба режиссёра \
-Игоря Копылова (Крылья Империи, Ржев, Ленинград 46). Её производством занималась компания Валерия Тодоровского, \
-а сам кинематографист выступил в качестве продюсера проекта. Центральные роли в сериале исполнили Виктор Добронравов, \
-Евгений Ткачук и Евгения Брик. Сюжет «Бомбы» частично основан на реальных событиях. В нём фигурируют такие \
-исторические личности, как Игорь Курчатов, Лаврентий Берия, Нильс Бор, Юлий Харитон и Борис Ванников. Экранным \
- персонажам даже придали некоторое внешнее сходство с прототипами. По словам режиссёра, для создания убедительных \
- образов команда проекта старалась как можно больше узнать о манерах и характерах политических и научных деятелей. \
- Ну а в главных героях ленты воплощены собирательные образы учёных. В августе 1945 года американский бомбардировщик \
- сбросил атомную бомбу на японский город Хиросиму. В результате взрыва мгновенно погибли около 80 тыс. человек, но \
- жертв бомбардировки было куда больше — многие скончались от последствий радиации. Спустя три дня мишенью американских \
- лётчиков стал город Нагасаки. По сюжету, между этими бомбардировками герои сериала, лучшие советские учёные во главе \
- с Курчатовым, получают особое задание от Берии — создать собственную атомную бомбу. Работа предполагает строительство \
- ряда крупных объектов, а также нескольких полноценных закрытых городов, в которых предстоит трудиться физикам. На \
- выполнение задания даётся лишь год."
+def start_work(d_value):
+    reader = DataReader()
+    data, plain_texts, topic_idx = reader.read_json_to_flat('texts/min_person_all.json')
+    topics = reader.get_json('texts/topics_artm.json')
+    udpipe_proc = UdpipeProcessor()
 
+    for k, v in data.items():
+        for head, value in data[k].items():
+            s = ' '.join(data[k][head]['text']).replace('\n', '').strip().strip('.').split('.')
+            data[k][head]['len'] = len(s)
 
-nltk.download("stopwords")
-russian_stopwords = stopwords.words("russian")
-mystem = Mystem()
+    processed = 0
+    failed_topic = 0
+    s_count = 3
+    d = d_value
+    summaries = {}
 
+    summarizer = BiasedLexRank()
 
-def preprocess_text(text):
-    tokens = mystem.lemmatize(text.lower())
-    tokens = [t for t in tokens if t not in russian_stopwords and t != " "]
-    tokens = [t for t in tokens if t not in string.digits]
-    text = " ".join(tokens)
-    return text
+    for key, text in plain_texts.items():
+        is_ok = False
+        sentences = udpipe_proc.tag_ud(text.strip('.'))
+        a = data[key]
+        if any([data[key][headline]['len'] <= s_count for headline in data[key].keys()]):  # or len(topic_idx[key]) < 2
+            continue
 
+        for t in topic_idx[key]:
+            topic = t
+            if type(t) is list:
+                topic = t[0]  # TODO: переделать на списки все
+            if topic > 49:
+                failed_topic += 1
+                continue
+            topic_bias = ' '.join(topics[f'topic_{topic}'])
+            topic_bias = udpipe_proc.tag_ud(topic_bias)
 
-sentences = nltk.sent_tokenize(preprocess_text(txt1))
+            idx = summarizer(sentences, topic_bias, d=d, sentences_count=s_count)
+            s = text.replace('\n', '').strip('.').split('.')
+            is_ok = True
+            summaries[f'{key}_{topic}'] = {'bias': topic_bias, 'summary_list': [s[i] for i in idx]}
 
-txt_bias = ['понедельник', 'показ', 'бомба', 'лента', 'ноябрь']
-summarizer = BiasedLexRank()
-print(summarizer(sentences, txt_bias, 0.5, 3))
+        processed += is_ok
+        print(processed)
 
+    print(processed)
+
+    with open(f"results/summaries_s{s_count}_d{d}.json", "w", encoding='utf-8') as outfile:
+        json.dump(summaries, outfile, ensure_ascii=False)

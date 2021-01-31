@@ -158,6 +158,37 @@ class Seq2Seq(nn.Module):
         
         return outputs
     
+    def sample(self, src, trg, teacher_forcing_ratio=0., max_len=30):
+        
+        #src = [src sent len, batch size]
+        #trg = [trg sent len, batch size]
+        #teacher_forcing_ratio is probability to use teacher forcing
+        #e.g. if teacher_forcing_ratio is 0.75 we use ground-truth inputs 75% of the time
+        
+        # Again, now batch is the first dimention instead of zero
+        batch_size = trg.shape[1]
+        max_len = trg.shape[0]
+        trg_vocab_size = self.decoder.output_dim
+        
+        #tensor to store decoder outputs
+        outputs = torch.ones(max_len, batch_size, trg_vocab_size).to(self.device)
+        
+        #last hidden state of the encoder is used as the initial hidden state of the decoder
+        hidden, cell, encoder_outputs = self.encoder(src)
+        
+        #first input to the decoder is the <sos> tokens
+        input = trg[0,:]
+        
+        for t in range(1, max_len):
+            
+            output, hidden, cell = self.decoder(input, hidden, cell, encoder_outputs)
+            outputs[t] = output
+            teacher_force = random.random() < teacher_forcing_ratio
+            next_token = torch.multinomial(F.softmax(output, dim=-1), 1).view(-1)
+            input = (trg[t] if teacher_force else next_token)
+        
+        return outputs
+    
     
     def batch_pgloss(self, src, trg, reward):
         """
@@ -171,11 +202,11 @@ class Seq2Seq(nn.Module):
         srq_len, batch_size = src.size()
 
         out = self.forward(src, trg,
-                           teacher_forcing_ratio=0.5).permute(1, 0, 2)  # batch * seq * vocab
+                           teacher_forcing_ratio=0.).permute(1, 0, 2)  # batch * seq * vocab
         out = F.log_softmax(out, dim=2)
         target_onehot = F.one_hot(trg.permute(1, 0), self.encoder.input_dim).float()  # batch * seq * vocab
         pred = torch.sum(out * target_onehot, dim=-1)  # batch_size * seq_len
-        pred = torch.sum(pred, dim=-1)
+        # pred = torch.sum(pred, dim=-1)
         loss = -torch.sum(pred * reward) 
 
-        return loss / batch_size
+        return loss

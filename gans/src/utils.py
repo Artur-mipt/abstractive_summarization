@@ -153,7 +153,8 @@ def tensor_to_text(t, sp, beam_search=False, beam_size=3):
             probs = np.exp(np.array([-a[1] for a in beam_search_res]))
             probs /= np.sum(probs)
             sentences = [a[0] for a in beam_search_res]
-            res = np.random.choice(len(sentences), size=1, p=probs)[0]
+            # res = np.random.choice(len(sentences), size=1, p=probs)[0]
+            res = np.random.choice(len(sentences), size=1)[0]
             tokens.append(sentences[res])
         tokens = list(map(lambda x: [int(c) for c in x], tokens))
         return sp.decode(tokens)

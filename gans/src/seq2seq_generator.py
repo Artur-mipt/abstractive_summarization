@@ -89,7 +89,7 @@ class Decoder(nn.Module):
         #input = [1, batch size]
         
         # Compute an embedding from the input data and apply dropout to it
-        embedded = self.dropout(self.embedding(input))# <YOUR CODE HERE>
+        embedded = self.dropout(self.embedding(input))
         
         # hidden = [layers, batch_size, hid_dim]
         # output = [seq, batch, hid_dim]
@@ -205,7 +205,7 @@ class Seq2Seq(nn.Module):
                            teacher_forcing_ratio=0.).permute(1, 0, 2)  # batch * seq * vocab
         out = F.log_softmax(out, dim=2)
         target_onehot = F.one_hot(trg.permute(1, 0), self.encoder.input_dim).float()  # batch * seq * vocab
-        pred = torch.sum(out * target_onehot, dim=-1)  # batch_size * seq_len
+        pred = torch.sum(out, dim=-1)  # batch_size * seq_len
         # pred = torch.sum(pred, dim=-1)
         loss = -torch.sum(pred * reward) 
 

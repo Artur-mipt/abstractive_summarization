@@ -158,6 +158,7 @@ class Seq2Seq(nn.Module):
         
         return outputs
     
+    
     def sample(self, src, trg, teacher_forcing_ratio=0., max_len=30):
         
         #src = [src sent len, batch size]
@@ -179,15 +180,19 @@ class Seq2Seq(nn.Module):
         #first input to the decoder is the <sos> tokens
         input = trg[0,:]
         
+        generated_highlight = torch.ones(max_len, batch_size).long().to(self.device)  # seq_len * batch_size
+        generated_highlight[0, :] = input
+        
         for t in range(1, max_len):
             
             output, hidden, cell = self.decoder(input, hidden, cell, encoder_outputs)
             outputs[t] = output
             teacher_force = random.random() < teacher_forcing_ratio
             next_token = torch.multinomial(F.softmax(output, dim=-1), 1).view(-1)
-            input = (trg[t] if teacher_force else next_token)
-        
-        return outputs
+            input = (trg[t] if teacher_force else next_token)  # (batch_size,)
+            generated_highlight[t] = input
+            
+        return outputs, generated_highlight
     
     
     def batch_pgloss(self, src, trg, reward):
@@ -199,14 +204,32 @@ class Seq2Seq(nn.Module):
         :return loss: policy loss
         """
 
-        srq_len, batch_size = src.size()
+        seq_len, batch_size = src.size()
 
         out = self.forward(src, trg,
                            teacher_forcing_ratio=0.).permute(1, 0, 2)  # batch * seq * vocab
-        out = F.log_softmax(out, dim=2)
+        
+        probs = F.softmax(out, dim=2).detach()  # batch * seq
+        preds = torch.argmax(probs, dim=2)
+        pred_onehot = F.one_hot(preds, self.encoder.input_dim).float()  # batch * seq * vocab
+        
         target_onehot = F.one_hot(trg.permute(1, 0), self.encoder.input_dim).float()  # batch * seq * vocab
-        pred = torch.sum(out, dim=-1)  # batch_size * seq_len
+        
+        out = F.log_softmax(out, dim=2)
+        pred = torch.sum(out * pred_onehot, dim=-1)  # batch_size * seq_len
         # pred = torch.sum(pred, dim=-1)
-        loss = -torch.sum(pred * reward) 
+        loss = -torch.mean(pred * reward)
+
+        return loss
+    
+
+    def batch_pgloss_generated(self, gen_out, generated_highlight, reward):
+  
+        gen_out = gen_out.permute(1, 0, 2)  # batch * seq * vocab
+        pred_onehot = F.one_hot(generated_highlight, self.encoder.input_dim).float()  # batch * seq * vocab
+        out_log = F.log_softmax(gen_out, dim=2)  # batch * seq * vocab
+        
+        pred = torch.sum(out_log * pred_onehot, dim=-1)  # batch_size * seq
+        loss = -torch.mean(pred * reward) 
 
         return loss

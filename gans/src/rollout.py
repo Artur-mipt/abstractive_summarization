@@ -24,6 +24,7 @@ class ROLLOUT:
         
         inp = sentences[:, :given_num]
         inp = inp[:, -1]
+      
         out, hidden, cell = self.gen.decoder(inp, hidden, cell, encoder_outputs)
         out = out.view(batch_size, -1, self.vocab_size)[:, -1]
 
@@ -33,7 +34,10 @@ class ROLLOUT:
         # MC search
         self.max_seq_len = sentences.size(1)
         for i in range(given_num, self.max_seq_len):
-            out = torch.multinomial(torch.exp(out), 1)
+            probs = torch.exp(out)
+            probs[torch.isnan(probs)] = 0
+            probs[torch.isinf(probs)] = 0
+            out = torch.multinomial(probs, 1)
             samples[:, i] = out.view(-1).data
             inp = out.view(-1)
             out, hidden, cell = self.gen.decoder(inp, hidden, cell, encoder_outputs)

@@ -92,7 +92,7 @@ def euclidean_dist(v1, v2):
     return np.linalg.norm(np.array(v1) - np.array(v2))
 
 
-def plot_distances(articles_topics, highlights_topics):
+def plot_distances(articles_topics, highlights_topics, return_results=False):
     cosines = []
     euclidean_dists = []
     for article_topic, highlight_topic in zip(articles_topics, highlights_topics):
@@ -122,6 +122,9 @@ def plot_distances(articles_topics, highlights_topics):
     plt.title('euclidean distances')
     plt.hist(euclidean_dists, bins=20)
     plt.show()
+    
+    if return_results:
+        return euclidean_dists, cosines
     
 
 def beam_search_decoder(data, k):

@@ -2,17 +2,22 @@ import torch
 from torch.utils.data import Dataset as TorchDataset, DataLoader
 
 class Dataset(TorchDataset):
-    def __init__(self, articles, highlights, sp):
+    def __init__(self, articles, highlights, sp, topic_token=None):
         self.articles = articles
         self.highlights = highlights
         self.sp = sp
+        self.topic_token = topic_token
 
     def __getitem__(self, index):
         article = self.articles[index]
         highlight = self.highlights[index]
         
-        return (torch.tensor([1] + self.sp.encode(article) + [2], dtype=torch.long),
-                torch.tensor([1] + self.sp.encode(highlight) + [2], dtype=torch.long))
+        if self.topic_token is None:
+            return (torch.tensor([1] + self.sp.encode(article) + [2], dtype=torch.long),
+                    torch.tensor([1] + self.sp.encode(highlight) + [2], dtype=torch.long))
+        else:
+            return (torch.tensor([self.topic_token] + [1] + self.sp.encode(article) + [2] + [self.topic_token], dtype=torch.long),
+                    torch.tensor([1] + self.sp.encode(highlight) + [2], dtype=torch.long))
 
     def __len__(self):
         return len(self.articles)

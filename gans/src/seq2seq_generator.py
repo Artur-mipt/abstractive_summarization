@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import random
+import numpy as np
 
 class Encoder(nn.Module):
     def __init__(self, input_dim, emb_dim, hid_dim, n_layers, dropout):
@@ -190,6 +191,7 @@ class Seq2Seq(nn.Module):
             teacher_force = random.random() < teacher_forcing_ratio
             next_token = torch.multinomial(F.softmax(output, dim=-1), 1).view(-1)
             input = (trg[t] if teacher_force else next_token)  # (batch_size,)
+    
             generated_highlight[t] = input
             
         return outputs, generated_highlight
